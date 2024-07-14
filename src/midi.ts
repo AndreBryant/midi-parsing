@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { MIDIEventTypes } from "./enums/midiEnums.js";
+import { MIDIEventTypes, EventNames } from "./enums/midiEnums.js";
 import type { uint8, uint16, uint32, int8, int16, int32 } from "./types";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +12,8 @@ export class MIDI {
   private midiEvents: Buffer | null = null;
   private dataSize: number = 0;
   private position: number = 0;
+  private noteCount = 0;
+  private eof = false;
 
   constructor();
   constructor(filePath: string);
@@ -19,8 +21,8 @@ export class MIDI {
     if (filePath) this.readMidiData(filePath);
   }
 
-  getMidiData() {
-    return this.midiBuffer;
+  getMidiFileSize() {
+    return this.midiBuffer?.byteLength ?? 0;
   }
 
   readMidiData(filePath: string) {
@@ -36,19 +38,47 @@ export class MIDI {
 
   parseMidiData() {
     this.position = 0;
-    const { nFileId, nHeaderLength, nFormat, nTrackChunks, nDivision } =
-      this.readMidiHeader();
+    const { nFileId, nTrackChunks } = this.readMidiHeader();
+    // needs better error handling like (stop reading if not a midi file)
+    if (nFileId ^ 0x4d546864) {
+      console.error("Not a midi File");
+      return;
+    }
 
-    for (let i = 0; i < nTrackChunks; i++) {
+    for (let i = 0; i < nTrackChunks && !this.eof; i++) {
+      if (this.eof) {
+        break; // just in case haha
+      }
+
       console.log("=====New Track=====");
 
+      // Track Header Information
       let nTrackID = this.readBytes(4);
       let nTrackLength = this.readBytes(4);
 
-      console.log(nTrackID.toString(16), nTrackLength.toString(16));
-      for (let i = 0; i < nTrackLength; i++) {
-        this.readNextByte();
+      let checkpoint = this.position;
+      while (this.position < checkpoint + nTrackLength) {
+        let nStatusTimeDelta = 0;
+        let nStatus = 0;
+
+        nStatusTimeDelta = this.readValue();
+        nStatus = (this.readNextByte() ?? 0) & 0xf0;
+
+        // TODO: Add other events defined in EventNames
+        switch (nStatus) {
+          case EventNames.VoiceNoteOn:
+            this.noteCount++;
+            break;
+          case EventNames.VoiceNoteOff:
+            break;
+          default:
+            break;
+        }
       }
+
+      // console.log(nTrackID.toString(16), nTrackLength.toString(16));
+      // this.readBytes(nTrackLength);
+      console.log("Current Note Count: ", this.noteCount);
     }
   }
 
@@ -67,40 +97,44 @@ export class MIDI {
   }
 
   private readBytes(length: number) {
+    //Manual Seeking in the Buffer
     let acc = 0;
 
     for (let i = 0; i < length; i++) {
-      const byte = this.readNextByte();
+      const byte = this.readNextByte() ?? 0;
       acc = (acc << 8) | byte;
     }
 
     return acc;
   }
 
-  private readNextByte(): number {
+  private readNextByte(): number | null {
+    // Live Seeking in the Buffer
     if (this.midiBuffer && this.position < this.dataSize) {
       const byte = this.midiBuffer[this.position];
       this.position++;
       return byte;
     } else {
-      throw new Error("End of buffer reached");
+      this.eof = true;
+      return null;
     }
   }
 
   private readValue() {
-    let nValue: number[] = [];
-    let current = this.readNextByte();
+    let nValue = 0;
+    let nByte = 0;
 
-    nValue.push(current);
+    nValue = this.readNextByte() ?? 0;
 
-    if (current & 0x80) {
+    if (nValue & 0x80) {
       // keep reading bytes while the MSB is 1
       // the last byte read should have 0 as its MSB
       do {
-        current = this.readNextByte();
-        nValue.push(current);
-      } while (current & 0x80);
+        nByte = this.readNextByte() ?? 0;
+        nValue = (nValue << 8) | nByte;
+      } while (nByte & 0x80);
     }
+
     return nValue;
   }
 }
