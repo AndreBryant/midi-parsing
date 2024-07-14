@@ -53,10 +53,10 @@ export class MIDI {
       console.log("=====New Track=====");
 
       // Track Header Information
-      let nTrackID = this.readBytes(4);
-      let nTrackLength = this.readBytes(4);
+      const nTrackID = this.readBytes(4);
+      const nTrackLength = this.readBytes(4);
 
-      let checkpoint = this.position;
+      const checkpoint = this.position;
       while (this.position < checkpoint + nTrackLength) {
         let nStatusTimeDelta = 0;
         let nStatus = 0;
