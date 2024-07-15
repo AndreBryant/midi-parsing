@@ -3,6 +3,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { MIDIEventTypes, EventNames } from "./enums/midiEnums.js";
 import type { uint8, uint16, uint32, int8, int16, int32 } from "./types";
+import type { MIDIEvent } from "./types";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,18 +58,31 @@ export class MIDI {
       const nTrackLength = this.readBytes(4);
 
       const checkpoint = this.position;
+      let nPreviousStatus = 0;
       while (this.position < checkpoint + nTrackLength) {
         let nStatusTimeDelta = 0;
         let nStatus = 0;
 
         nStatusTimeDelta = this.readValue();
-        nStatus = (this.readNextByte() ?? 0) & 0xf0;
+        nStatus = this.readNextByte() ?? 0;
+        const statusCheck = nStatus & 0xf0;
 
-        switch (nStatus) {
-          case EventNames.VoiceNoteOn:
-            this.noteCount++;
-            break;
+        switch (statusCheck) {
           case EventNames.VoiceNoteOff:
+            nPreviousStatus = nStatus;
+            const nChannel = nStatus & 0x0f;
+            const nNoteId = this.readNextByte();
+            const nVelocity = this.readNextByte();
+
+            // insert this to the midiEvents
+            console.log(
+              nStatusTimeDelta.toString(16),
+              nChannel.toString(16),
+              nNoteId?.toString(16),
+              nVelocity?.toString(16)
+            );
+            break;
+          case EventNames.VoiceNoteOn:
             break;
           case EventNames.VoiceAftertouch:
             break;

@@ -1,3 +1,5 @@
+import { EventNames } from "./enums/midiEnums";
+
 export type uint8 = number;
 export type uint16 = number;
 export type uint32 = number;
@@ -29,3 +31,26 @@ function toInt16(num: number): int16 {
 function toInt32(num: number): int32 {
   return num | 0;
 }
+
+export type MIDIEvent = {
+  statusTimeDelta: number;
+  eventType: EventNames;
+  channel: number;
+  noteId: number;
+  velocity: number;
+};
+
+export type MIDINote = {
+  key: number;
+  velocity: number;
+  channel: number;
+  startTime: number;
+  duration: number;
+};
+
+export type MIDITrack = {
+  trackName: string;
+  instrument: string;
+  events: MIDIEvent[];
+  notes: MIDINote[];
+};
