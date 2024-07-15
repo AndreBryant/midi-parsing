@@ -1,16 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { MIDIEventTypes, EventNames } from "./enums/midiEnums.js";
-import type { uint8, uint16, uint32, int8, int16, int32 } from "./types";
-import type { MIDIEvent } from "./types";
+import { EventNames } from "./enums/midiEnums.js";
+import type { MIDIEvent, MIDINote, MIDITrack } from "./types";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class MIDI {
   private midiBuffer: Buffer | null = null;
-  private midiEvents: Buffer | null = null;
+  private midiTracks: MIDITrack[] | null = null;
   private dataSize: number = 0;
   private position: number = 0;
   private noteCount = 0;
@@ -51,14 +50,18 @@ export class MIDI {
     }
 
     for (let i = 0; i < nTrackChunks && !this.eof; i++) {
+      let events: MIDIEvent[] = [];
+      let notes: MIDINote[] = [];
+      let track: MIDITrack | null = null;
+
       console.log("=====New Track=====");
 
       // Track Header Information
       const nTrackID = this.readBytes(4);
       const nTrackLength = this.readBytes(4);
+      let nPreviousStatus = 0;
 
       const checkpoint = this.position;
-      let nPreviousStatus = 0;
       while (this.position < checkpoint + nTrackLength) {
         let nStatusTimeDelta = 0;
         let nStatus = 0;
@@ -69,37 +72,132 @@ export class MIDI {
 
         switch (statusCheck) {
           case EventNames.VoiceNoteOff:
-            nPreviousStatus = nStatus;
-            const nChannel = nStatus & 0x0f;
-            const nNoteId = this.readNextByte();
-            const nVelocity = this.readNextByte();
+            {
+              nPreviousStatus = nStatus;
+              const nChannel = nStatus & 0x0f;
+              const nNoteId = this.readNextByte();
+              const nVelocity = this.readNextByte();
 
-            // insert this to the midiEvents
-            console.log(
-              nStatusTimeDelta.toString(16),
-              nChannel.toString(16),
-              nNoteId?.toString(16),
-              nVelocity?.toString(16)
-            );
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoiceNoteOff,
+                  channel: nChannel,
+                  noteId: nNoteId!,
+                  velocity: nVelocity!,
+                })
+              );
+            }
             break;
           case EventNames.VoiceNoteOn:
+            {
+              nPreviousStatus = nStatus;
+              const nChannel = nStatus & 0x0f;
+              const nNoteId = this.readNextByte();
+              const nVelocity = this.readNextByte();
+
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType:
+                    nVelocity === 0
+                      ? EventNames.VoiceNoteOff
+                      : EventNames.VoiceNoteOn,
+                  channel: nChannel,
+                  noteId: nNoteId!,
+                  velocity: nVelocity!,
+                })
+              );
+            }
             break;
           case EventNames.VoiceAftertouch:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoiceAftertouch,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           case EventNames.VoiceControlChange:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoiceControlChange,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           case EventNames.VoiceProgramChange:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoiceProgramChange,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           case EventNames.VoiceChannelPressure:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoiceChannelPressure,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           case EventNames.VoicePitchBend:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.VoicePitchBend,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           case EventNames.SystemExclusive:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  eventType: EventNames.SystemExclusive,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
           default:
+            {
+              const nChannel = nStatus & 0x0f;
+              events.push(
+                this.createMIDIEvent({
+                  statusTimeDelta: nStatusTimeDelta,
+                  channel: nChannel,
+                })
+              );
+            }
             break;
         }
       }
+      // push new MIDI track to this.midiTracks[]
+      // this.midiTracks?.push(track);
+      console.log(events.length);
     }
   }
 
@@ -157,5 +255,21 @@ export class MIDI {
     }
 
     return nValue;
+  }
+
+  private createMIDIEvent(partialEvent: Partial<MIDIEvent>): MIDIEvent {
+    return {
+      statusTimeDelta: 0,
+      eventType: undefined,
+      channel: 0,
+      noteId: null,
+      velocity: null,
+      controller: null,
+      value: null,
+      program: null,
+      pitchWheelLSB: null,
+      pitchWheelMSB: null,
+      ...partialEvent,
+    };
   }
 }

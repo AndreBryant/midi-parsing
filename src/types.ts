@@ -34,10 +34,15 @@ function toInt32(num: number): int32 {
 
 export type MIDIEvent = {
   statusTimeDelta: number;
-  eventType: EventNames;
+  eventType: EventNames | undefined;
   channel: number;
-  noteId: number;
-  velocity: number;
+  noteId: number | null;
+  velocity: number | null;
+  controller: number | null;
+  value: number | null;
+  program: number | null;
+  pitchWheelLSB: number | null;
+  pitchWheelMSB: number | null;
 };
 
 export type MIDINote = {
