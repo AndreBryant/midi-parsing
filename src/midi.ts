@@ -25,6 +25,10 @@ export class MIDI {
     return this.midiBuffer?.byteLength ?? 0;
   }
 
+  getNoteCount() {
+    return this.noteCount;
+  }
+
   readMidiData(filePath: string) {
     const absolutePath = path.resolve(__dirname, "../assets/midi", filePath);
     try {
@@ -39,17 +43,13 @@ export class MIDI {
   parseMidiData() {
     this.position = 0;
     const { nFileId, nTrackChunks } = this.readMidiHeader();
-    // needs better error handling like (stop reading if not a midi file)
+    // TODO: needs better error handling like (stop reading if not a midi file)
     if (nFileId ^ 0x4d546864) {
       console.error("Not a midi File");
       return;
     }
 
     for (let i = 0; i < nTrackChunks && !this.eof; i++) {
-      if (this.eof) {
-        break; // just in case haha
-      }
-
       console.log("=====New Track=====");
 
       // Track Header Information
@@ -64,21 +64,28 @@ export class MIDI {
         nStatusTimeDelta = this.readValue();
         nStatus = (this.readNextByte() ?? 0) & 0xf0;
 
-        // TODO: Add other events defined in EventNames
         switch (nStatus) {
           case EventNames.VoiceNoteOn:
             this.noteCount++;
             break;
           case EventNames.VoiceNoteOff:
             break;
+          case EventNames.VoiceAftertouch:
+            break;
+          case EventNames.VoiceControlChange:
+            break;
+          case EventNames.VoiceProgramChange:
+            break;
+          case EventNames.VoiceChannelPressure:
+            break;
+          case EventNames.VoicePitchBend:
+            break;
+          case EventNames.SystemExclusive:
+            break;
           default:
             break;
         }
       }
-
-      // console.log(nTrackID.toString(16), nTrackLength.toString(16));
-      // this.readBytes(nTrackLength);
-      console.log("Current Note Count: ", this.noteCount);
     }
   }
 
