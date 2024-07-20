@@ -1,7 +1,8 @@
-import { MIDI } from "./midi.js";
+import { MIDIParser } from "./midiParser.js";
+import { MIDIVisualizer } from "./midiVisualizer.js";
 
 // Create a new instance of MIDI::class
-const midi = new MIDI();
+const midi = new MIDIParser();
 
 // Read a midi file
 midi.readMidiData("Pretender.mid");
@@ -21,14 +22,10 @@ const noteCount = midi.getNoteCount();
 // get tracks
 const tracks = midi.getTracks()!;
 
-// loop through each track
-for (const track of tracks) {
-  // get these info per track
-  const trackName = track.trackName;
-  const instrument = track.instrument;
-  const events = track.events;
-  const notes = track.notes;
+// MIDIVisualizer.visualize(tracks);
 
-  // your code here
-  // check types.ts
-}
+// Optionally, stop the visualization after a certain duration
+// setTimeout(() => {
+//   MIDIVisualizer.stop();
+//   console.log("Visualization stopped.");
+// }, 100000); // Stop after 10 seconds

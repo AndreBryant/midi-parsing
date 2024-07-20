@@ -2,18 +2,18 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { EventNames, MetaEvents } from "./enums/midiEnums.js";
-import type { MIDIEvent, MIDINote, MIDITrack } from "./types";
+import type { MIDIEvent, MIDINote, MIDITrack } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export class MIDI {
+export class MIDIParser {
   private midiBuffer: Buffer | null = null;
   private midiTracks: MIDITrack[] | null = [];
   private dataSize: number = 0;
   private position: number = 0;
-  private noteCount = 0;
   private eof = false;
+  private tempo = 0;
 
   constructor();
   constructor(filePath: string);
@@ -50,7 +50,7 @@ export class MIDI {
 
   parseMidiData() {
     this.position = 0;
-    const { nFileId, nTrackChunks } = this.readMidiHeader();
+    const { nFileId, nTrackChunks, nDivision } = this.readMidiHeader();
     // TODO: needs better error handling like (stop reading if not a midi file)
     if (nFileId ^ 0x4d546864) {
       console.error("Not a midi File");
@@ -196,14 +196,98 @@ export class MIDI {
             break;
           case EventNames.SystemExclusive:
             {
-              const nChannel = nStatus & 0x0f;
-              events.push(
-                this.createMIDIEvent({
-                  statusTimeDelta: nStatusTimeDelta,
-                  eventType: EventNames.SystemExclusive,
-                  channel: nChannel,
-                })
-              );
+              if (nStatus == 0xff) {
+                const nType = this.readNextByte();
+                const nLength = this.readValue();
+                switch (nType) {
+                  case MetaEvents.MetaSequence:
+                    console.log(
+                      "Sequence Number",
+                      nType,
+                      nLength,
+                      this.readNextByte(),
+                      this.readNextByte()
+                    );
+                    break;
+                  case MetaEvents.MetaText:
+                    const txt = this.readNextBytesAsString(nLength);
+                    console.log("MetaText", txt);
+                    break;
+                  case MetaEvents.MetaCopyright:
+                    const copyright = this.readNextBytesAsString(nLength);
+                    console.log("MetaCopyright", copyright);
+                    break;
+                  case MetaEvents.MetaTrackName:
+                    {
+                      const message = this.readNextBytesAsString(nLength);
+                      console.log("TrackName", message);
+                    }
+                    break;
+                  case MetaEvents.MetaInstrumentName:
+                    const instrument = this.readNextBytesAsString(nLength);
+                    console.log("instrument name", instrument);
+                    break;
+                  case MetaEvents.MetaLyrics:
+                    const lyrics = this.readNextBytesAsString(nLength);
+                    console.log("lyrics", lyrics);
+                    break;
+                  case MetaEvents.MetaMarker:
+                    {
+                      const message = this.readNextBytesAsString(nLength);
+                      console.log("Marker", message);
+                    }
+                    break;
+                  case MetaEvents.MetaCuePoint:
+                    const cue = this.readNextBytesAsString(nLength);
+                    console.log("cuepoint", cue);
+                    break;
+                  case MetaEvents.MetaChannelPrefix:
+                    const prefix = this.readNextBytesAsString(nLength);
+                    console.log("channel prefix", prefix);
+                    break;
+                  case MetaEvents.MetaEndOfTrack:
+                    const eot = this.readNextBytesAsString(nLength);
+                    console.log("end of track", eot);
+                    break;
+                  case MetaEvents.MetaSetTempo:
+                    const tempo = (
+                      (1000 * 1000 * 60) /
+                      this.readBytes(nLength)
+                    ).toFixed(3);
+                    console.log("setTempo", tempo + " bpm");
+                    break;
+                  case MetaEvents.MetaSMPTEOffset:
+                    const smpte = this.readBytes(nLength);
+                    console.log("smpteoffset", smpte);
+                    break;
+                  case MetaEvents.MetaTimeSignature:
+                    const timeSignature = `${this.readNextByte()}/${
+                      2 << this.readNextByte()!
+                    }`;
+                    const clocksPerTick = this.readNextByte();
+                    const n32per24clocks = this.readNextByte();
+                    console.log(
+                      "time signature",
+                      nType,
+                      nLength,
+                      timeSignature,
+                      clocksPerTick,
+                      n32per24clocks
+                    );
+                    break;
+                  case MetaEvents.MetaKeySignature:
+                    const key = this.readNextByte();
+                    const mode = this.readNextByte();
+                    console.log("key signature", key, mode);
+                    break;
+                  case MetaEvents.MetaSequencerSpecific:
+                    const specific = this.readNextBytesAsString(nLength);
+                    console.log("sequencer specific", specific);
+                    break;
+                  default:
+                    break;
+                }
+              }
             }
             break;
           default:
@@ -220,17 +304,17 @@ export class MIDI {
         }
       }
       track = {
-        trackName: "test",
-        instrument: "test",
+        trackName: "test", // change this later
+        instrument: "test", // change this later
         events: events,
-        notes: this.interpretMidiEvent(events),
+        notes: this.interpretMidiEvents(events),
       };
 
       this.midiTracks?.push(track);
     }
   }
 
-  private interpretMidiEvent(midiEvents: MIDIEvent[]): MIDINote[] {
+  private interpretMidiEvents(midiEvents: MIDIEvent[]): MIDINote[] {
     let nWallTime = 0;
     let notesBeingProcessed: MIDINote[] = [];
     let result: MIDINote[] = [];
@@ -315,6 +399,15 @@ export class MIDI {
     }
 
     return nValue;
+  }
+
+  private readNextBytesAsString(length: number): string {
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      let byte = this.readNextByte()!;
+      result += String.fromCharCode(byte);
+    }
+    return result;
   }
 
   private createMIDIEvent(partialEvent: Partial<MIDIEvent>): MIDIEvent {
