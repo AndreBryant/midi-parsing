@@ -1,1 +1,12 @@
-https://ccrma.stanford.edu/~craig/14q/midifile/MidiFileFormat.html#:~:text=Header%20Chunk,-The%20header%20chunk&text=These%20four%20characters%20at%20the,this%20is%20a%20MIDI%20file.&text=length%20of%20the%20header%20chunk,of%20the%20next%20three%20fields).
+# MIDI Parsing in TypeScript
+
+Implementation of a simple MIDI Parser in TypeScript.
+
+Reference: [Standard MIDI File Structure](https://ccrma.stanford.edu/~craig/14q/midifile/MidiFileFormat.html)
+
+## Getting Started
+
+```bash
+npm run build
+npm run start
+```
